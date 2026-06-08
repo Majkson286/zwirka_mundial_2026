@@ -152,7 +152,9 @@ nav{display:flex;gap:6px;margin:18px 0 8px;flex-wrap:wrap}
 .admin-match .nm{font-size:14px;font-weight:600}
 .admin-match .nm small{color:var(--muted);font-weight:400}
 .admin-ctrl{display:flex;align-items:center;gap:6px}
-.admin-ctrl input{width:42px;height:38px;text-align:center;background:var(--bg);border:1px solid var(--line);border-radius:8px;color:var(--txt);font-family:'Bebas Neue';font-size:20px}
+.admin-ctrl input{width:42px;height:38px;text-align:center;background:var(--bg);border:1px solid var(--line);border-radius:8px;color:var(--txt);font-family:'Bebas Neue';font-size:20px;-moz-appearance:textfield;appearance:textfield;padding:0;line-height:38px}
+.admin-ctrl input::-webkit-outer-spin-button,
+.admin-ctrl input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .admin-ctrl .btn{padding:8px 12px;font-size:13px}
 
 .empty{text-align:center;color:var(--muted);padding:50px 20px;font-size:15px}
