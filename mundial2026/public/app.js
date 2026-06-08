@@ -11,19 +11,20 @@ let state = {
 };
 
 // Mapowanie nazw drużyn -> flagi emoji
+// Kody krajów dla obrazków flag (flagcdn.com) — działają na każdym systemie, też Windows
 const FLAGS = {
-  'Mexico':'🇲🇽','South Africa':'🇿🇦','South Korea':'🇰🇷','Czechia':'🇨🇿',
-  'Canada':'🇨🇦','Bosnia & Herzegovina':'🇧🇦','USA':'🇺🇸','Paraguay':'🇵🇾',
-  'Qatar':'🇶🇦','Switzerland':'🇨🇭','Brazil':'🇧🇷','Morocco':'🇲🇦',
-  'Haiti':'🇭🇹','Scotland':'🏴󠁧󠁢󠁳󠁣󠁴󠁿','Australia':'🇦🇺','Türkiye':'🇹🇷',
-  'Germany':'🇩🇪','Curaçao':'🇨🇼','Netherlands':'🇳🇱','Japan':'🇯🇵',
-  'Ivory Coast':'🇨🇮','Ecuador':'🇪🇨','Sweden':'🇸🇪','Tunisia':'🇹🇳',
-  'Spain':'🇪🇸','Cape Verde':'🇨🇻','Belgium':'🇧🇪','Egypt':'🇪🇬',
-  'Saudi Arabia':'🇸🇦','Uruguay':'🇺🇾','Iran':'🇮🇷','New Zealand':'🇳🇿',
-  'France':'🇫🇷','Senegal':'🇸🇳','Iraq':'🇮🇶','Norway':'🇳🇴',
-  'Argentina':'🇦🇷','Algeria':'🇩🇿','Austria':'🇦🇹','Jordan':'🇯🇴',
-  'Portugal':'🇵🇹','DR Congo':'🇨🇩','England':'🏴󠁧󠁢󠁥󠁮󠁧󠁿','Croatia':'🇭🇷',
-  'Ghana':'🇬🇭','Panama':'🇵🇦','Uzbekistan':'🇺🇿','Colombia':'🇨🇴',
+  'Mexico':'mx','South Africa':'za','South Korea':'kr','Czechia':'cz',
+  'Canada':'ca','Bosnia & Herzegovina':'ba','USA':'us','Paraguay':'py',
+  'Qatar':'qa','Switzerland':'ch','Brazil':'br','Morocco':'ma',
+  'Haiti':'ht','Scotland':'gb-sct','Australia':'au','Türkiye':'tr',
+  'Germany':'de','Curaçao':'cw','Netherlands':'nl','Japan':'jp',
+  'Ivory Coast':'ci','Ecuador':'ec','Sweden':'se','Tunisia':'tn',
+  'Spain':'es','Cape Verde':'cv','Belgium':'be','Egypt':'eg',
+  'Saudi Arabia':'sa','Uruguay':'uy','Iran':'ir','New Zealand':'nz',
+  'France':'fr','Senegal':'sn','Iraq':'iq','Norway':'no',
+  'Argentina':'ar','Algeria':'dz','Austria':'at','Jordan':'jo',
+  'Portugal':'pt','DR Congo':'cd','England':'gb-eng','Croatia':'hr',
+  'Ghana':'gh','Panama':'pa','Uzbekistan':'uz','Colombia':'co',
 };
 // Polskie nazwy drużyn
 const PL = {
@@ -42,7 +43,12 @@ const PL = {
 };
 const STAGE_PL = {group:'Faza grupowa',R32:'1/16 finału',R16:'1/8 finału',QF:'Ćwierćfinał',SF:'Półfinał','3rd':'Mecz o 3. miejsce',Final:'FINAŁ'};
 
-function flag(t){ return FLAGS[t] || '⚽'; }
+function flag(t){
+  const code = FLAGS[t];
+  if(!code) return `<span class="flag-fallback">⚽</span>`;
+  // flagcdn: obrazek 80px szerokości, wyświetlany jako ~40px (retina)
+  return `<img class="flag-img" src="https://flagcdn.com/w80/${code}.png" alt="${t}" loading="lazy">`;
+}
 function teamName(t){ return PL[t] || t; }
 
 // ---- API helper ----
@@ -98,7 +104,7 @@ function renderHeader(){
   const me = state.leaderboard.find(r=>r.id===state.user.id);
   const pts = me ? me.total : 0;
   return `<header><div class="hd">
-    <div class="logo"><div class="ball"></div><b>MUNDIAL<span>26</span></b></div>
+    <div class="logo"><div class="goat">🐐</div><b>MUNDIAL<span>26</span></b></div>
     <div class="userbox">
       <span class="pts">${pts} pkt</span>
       <span>${state.user.display_name}</span>
@@ -117,9 +123,9 @@ function renderNav(){
 function renderAuth(){
   const isLogin = state.authMode==='login';
   return `<div class="auth-screen"><div class="wrap"><div class="auth-card">
-    <div class="logo" style="margin-bottom:18px"><div class="ball"></div><b style="font-size:30px">MUNDIAL<span>26</span></b></div>
+    <div class="logo" style="margin-bottom:18px"><div class="goat">🐐</div><b style="font-size:30px">MUNDIAL<span>26</span></b></div>
     <h2>${isLogin?'Zaloguj się':'Załóż konto'}</h2>
-    <div class="sub">Typer Mistrzostw Świata 2026 — graj ze znajomymi</div>
+    <div class="sub">Typer Mistrzostw Świata 2026, graj ze znajomymi</div>
     <div id="authMsg"></div>
     ${!isLogin?`<div class="field"><label>Nazwa wyświetlana</label><input id="f_display" placeholder="np. Kuba" maxlength="30"></div>`:''}
     <div class="field"><label>Login</label><input id="f_user" placeholder="login" autocomplete="username"></div>
@@ -144,10 +150,13 @@ function bindAuth(){
       let data;
       if(state.authMode==='login'){
         data=await api('/login',{method:'POST',body:JSON.stringify({username,password})});
+        state.view='matches';
       }else{
         const display_name=document.getElementById('f_display').value.trim();
         const invite=document.getElementById('f_invite').value.trim();
         data=await api('/register',{method:'POST',body:JSON.stringify({username,password,display_name,invite})});
+        state.view='rules';  // nowy gracz widzi najpierw zasady
+        state.justRegistered=true;
       }
       saveSession(data.token,data.user);
       await loadAll(); render();
@@ -162,7 +171,7 @@ function bindAuth(){
 function bindHeader(){
   document.getElementById('logoutBtn').onclick=logout;
   document.querySelectorAll('.tab').forEach(t=>{
-    t.onclick=()=>{ state.view=t.dataset.view; render(); };
+    t.onclick=()=>{ state.view=t.dataset.view; state.justRegistered=false; render(); };
   });
 }
 
@@ -270,23 +279,27 @@ function renderLeaderboard(){
 
 // ---- ZASADY ----
 function renderRules(){
-  return `<div class="info-card">
+  const welcome = state.justRegistered ? `<div class="info-card" style="border-color:var(--green)">
+    <h3 style="color:var(--green)">Witaj w grze, ${state.user.display_name}! 🐐</h3>
+    <p style="color:var(--muted);font-size:14px">Konto założone. Zanim zaczniesz typować, rzuć okiem na zasady. Potem przejdź do zakładki <b style="color:var(--txt)">Mecze</b> i obstaw pierwsze spotkania!</p>
+  </div>` : '';
+  return welcome + `<div class="info-card">
     <h3>Jak grać?</h3>
-    <p style="color:var(--muted);font-size:14px;margin-bottom:18px">Obstaw dokładny wynik każdego meczu. Typować możesz aż do <b style="color:var(--txt)">1 godziny przed</b> pierwszym gwizdkiem — potem mecz się blokuje. Typ możesz dowolnie zmieniać do momentu blokady.</p>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:18px">Obstaw dokładny wynik każdego meczu. Typować możesz aż do <b style="color:var(--txt)">pierwszego gwizdka</b>, czyli rozpoczęcia meczu. Po starcie meczu typ się blokuje i nie da się go już zmienić. Do tego czasu możesz dowolnie zmieniać swój typ.</p>
     <div class="rule"><div class="pt">10</div><div class="desc"><b>Dokładny wynik</b>Trafiłeś dokładnie liczbę bramek obu drużyn (np. typ 2:1, wynik 2:1)</div></div>
     <div class="rule"><div class="pt">5</div><div class="desc"><b>Trafiony rezultat</b>Trafiłeś kto wygra (lub remis), ale nie dokładny wynik (np. typ 2:0, wynik 3:1)</div></div>
     <div class="rule"><div class="pt">0</div><div class="desc"><b>Pudło</b>Inny rezultat niż obstawiony</div></div>
   </div>
   <div class="info-card">
     <h3>Dla luzu 😎</h3>
-    <p style="color:var(--muted);font-size:14px">To zabawa dla znajomych — bez presji. Punkty liczą się automatycznie po wpisaniu wyniku meczu przez administratora. Powodzenia!</p>
+    <p style="color:var(--muted);font-size:14px">To zabawa dla znajomych, bez presji. Punkty liczą się automatycznie po wpisaniu wyniku meczu przez administratora. Powodzenia!</p>
   </div>`;
 }
 
 // ---- ADMIN ----
 function renderAdmin(){
   let html=`<div class="info-card"><h3>Panel administratora</h3>
-    <p style="color:var(--muted);font-size:14px">Wpisz wynik po zakończeniu meczu — punkty przeliczą się automatycznie. Dla faz pucharowych możesz też poprawić nazwy drużyn.</p></div>`;
+    <p style="color:var(--muted);font-size:14px">Wpisz wynik po zakończeniu meczu, punkty przeliczą się automatycznie. Dla faz pucharowych możesz też poprawić nazwy drużyn.</p></div>`;
   const list=[...state.matches];
   html+='<div style="margin-top:14px">';
   for(const m of list){
