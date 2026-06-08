@@ -180,8 +180,19 @@ function renderContent(){
   if(state.view==='matches') c.innerHTML=renderMatches();
   else if(state.view==='leaderboard') c.innerHTML=renderLeaderboard();
   else if(state.view==='rules') c.innerHTML=renderRules();
-  else if(state.view==='admin') c.innerHTML=renderAdmin();
+  else if(state.view==='admin'){ c.innerHTML=renderAdmin(); loadAdminUsers(); }
   bindContent();
+}
+
+async function loadAdminUsers(){
+  try{
+    const data=await api('/admin-users');
+    state.adminUsers=data.users;
+    if(state.view==='admin'){
+      document.getElementById('content').innerHTML=renderAdmin();
+      bindContent();
+    }
+  }catch(e){ /* brak uprawnień itp. — ignoruj */ }
 }
 
 // ---- MECZE ----
@@ -300,6 +311,27 @@ function renderRules(){
 function renderAdmin(){
   let html=`<div class="info-card"><h3>Panel administratora</h3>
     <p style="color:var(--muted);font-size:14px">Wpisz wynik po zakończeniu meczu, punkty przeliczą się automatycznie. Dla faz pucharowych możesz też poprawić nazwy drużyn.</p></div>`;
+
+  // Sekcja: zarządzanie graczami
+  html+=`<div class="info-card"><h3>Gracze</h3>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:14px">Reset hasła ustawia nowe hasło wybranemu graczowi i wylogowuje go ze wszystkich urządzeń. Przekaż mu nowe hasło.</p>
+    <div id="adminUsers">`;
+  if(state.adminUsers && state.adminUsers.length){
+    for(const u of state.adminUsers){
+      html+=`<div class="admin-match">
+        <div class="nm">${u.display_name} <small>· login: ${u.username}${u.is_admin?' · admin':''}</small></div>
+        <div class="admin-ctrl">
+          <button class="btn btn-ghost" data-resetpass="${u.id}" data-name="${u.display_name}">Resetuj hasło</button>
+        </div>
+      </div>`;
+    }
+  } else {
+    html+=`<div style="color:var(--muted);font-size:13px">Ładowanie graczy...</div>`;
+  }
+  html+=`</div></div>`;
+
+  // Sekcja: mecze
+  html+=`<div class="info-card" style="padding-bottom:8px"><h3>Wyniki meczów</h3></div>`;
   const list=[...state.matches];
   html+='<div style="margin-top:14px">';
   for(const m of list){
@@ -334,6 +366,19 @@ function bindContent(){
   document.querySelectorAll('[data-clear]').forEach(b=>{
     b.onclick=()=>clearResult(parseInt(b.dataset.clear));
   });
+  document.querySelectorAll('[data-resetpass]').forEach(b=>{
+    b.onclick=()=>resetPassword(parseInt(b.dataset.resetpass), b.dataset.name);
+  });
+}
+
+async function resetPassword(userId, name){
+  const newPass=prompt(`Nowe hasło dla gracza "${name}" (min. 4 znaki):`);
+  if(newPass===null) return; // anulowano
+  if(newPass.length<4){ toast('Hasło musi mieć min. 4 znaki'); return; }
+  try{
+    await api('/admin-users',{method:'POST',body:JSON.stringify({user_id:userId,new_password:newPass})});
+    toast(`Hasło gracza ${name} zmienione`);
+  }catch(e){ toast(e.message); }
 }
 
 async function savePrediction(id){
