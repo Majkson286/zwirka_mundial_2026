@@ -6,4 +6,4 @@ pages_build_output_dir = "public"
 [[d1_databases]]
 binding = "DB"
 database_name = "mundial2026"
-database_id = "WSTAW_TUTAJ_DATABASE_ID"
+database_id = "ed5808a8-3da5-4c46-b70c-df1cf7fc1779"
