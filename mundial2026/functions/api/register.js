@@ -6,6 +6,13 @@ export async function onRequestPost({ request, env }) {
   const username = (body.username || '').trim().toLowerCase();
   const displayName = (body.display_name || body.username || '').trim();
   const password = body.password || '';
+  const invite = (body.invite || '').trim();
+
+  // Hasło-zaproszenie do rejestracji (domyślnie "zwirka", można nadpisać zmienną INVITE_CODE)
+  const inviteCode = env.INVITE_CODE || 'zwirka';
+  if (invite !== inviteCode) {
+    return err('Błędne hasło rejestracji', 403);
+  }
 
   if (!/^[a-z0-9_]{3,20}$/.test(username)) {
     return err('Login: 3-20 znaków, małe litery/cyfry/podkreślnik');
