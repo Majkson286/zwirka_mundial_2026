@@ -124,6 +124,7 @@ function renderAuth(){
     ${!isLogin?`<div class="field"><label>Nazwa wyświetlana</label><input id="f_display" placeholder="np. Kuba" maxlength="30"></div>`:''}
     <div class="field"><label>Login</label><input id="f_user" placeholder="login" autocomplete="username"></div>
     <div class="field"><label>Hasło</label><input id="f_pass" type="password" placeholder="hasło" autocomplete="${isLogin?'current-password':'new-password'}"></div>
+    ${!isLogin?`<div class="field"><label>Hasło rejestracji</label><input id="f_invite" type="password" placeholder="hasło dla znajomych"></div>`:''}
     <button class="btn btn-green" id="authBtn" style="width:100%;margin-top:8px">${isLogin?'Wejdź do gry':'Zarejestruj się'}</button>
     <div class="auth-toggle">${isLogin?'Nie masz konta?':'Masz już konto?'}
       <a id="toggleAuth">${isLogin?'Zarejestruj się':'Zaloguj się'}</a></div>
@@ -145,7 +146,8 @@ function bindAuth(){
         data=await api('/login',{method:'POST',body:JSON.stringify({username,password})});
       }else{
         const display_name=document.getElementById('f_display').value.trim();
-        data=await api('/register',{method:'POST',body:JSON.stringify({username,password,display_name})});
+        const invite=document.getElementById('f_invite').value.trim();
+        data=await api('/register',{method:'POST',body:JSON.stringify({username,password,display_name,invite})});
       }
       saveSession(data.token,data.user);
       await loadAll(); render();
@@ -230,7 +232,7 @@ function matchCard(m){
       <span class="sep">:</span>
       <input type="number" min="0" max="99" id="a_${m.id}" value="${pa}" placeholder="-">
     </div>`;
-    statusHtml=`<div class="status"><span class="dot open"></span>Otwarte do ${fmtTime(new Date(new Date(m.kickoff).getTime()-3600000).toISOString())}</div>
+    statusHtml=`<div class="status"><span class="dot open"></span>Otwarte do ${fmtTime(m.kickoff)}</div>
       <button class="btn btn-green" data-save="${m.id}">${m.prediction?'Zmień typ':'Obstaw'}</button>`;
   }
 
