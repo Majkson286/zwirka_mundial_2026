@@ -2,7 +2,7 @@ import { json, getUser } from './_lib.js';
 
 // Zwraca wszystkie mecze z bazy + typ bieżącego usera (jeśli zalogowany).
 // "locked" = true gdy do startu meczu zostało < 1h LUB mecz się zaczął/zakończył.
-const LOCK_MINUTES = 60;
+const LOCK_MINUTES = 0;
 
 export async function onRequestGet({ request, env }) {
   const user = await getUser(request, env);
