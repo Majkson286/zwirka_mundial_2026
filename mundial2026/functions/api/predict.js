@@ -1,6 +1,6 @@
 import { json, err, getUser } from './_lib.js';
 
-const LOCK_MINUTES = 60;
+const LOCK_MINUTES = 0;
 
 export async function onRequestPost({ request, env }) {
   const user = await getUser(request, env);
