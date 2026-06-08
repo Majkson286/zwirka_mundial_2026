@@ -1,0 +1,14 @@
+{
+  "name": "mundial2026",
+  "version": "1.0.0",
+  "description": "Typer Mundial 2026 - aplikacja do obstawiania meczow ze znajomymi",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler pages deploy public",
+    "db:schema": "wrangler d1 execute mundial2026 --remote --file=schema.sql",
+    "dev": "wrangler pages dev public --d1=DB"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
