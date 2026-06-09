@@ -456,6 +456,7 @@ function renderAdmin(){
           ${allTeamsSorted().map(t=>`<option value="${t}" ${results['champion:WC']===t?'selected':''}>${teamName(t)}</option>`).join('')}
         </select>
         <button class="btn btn-green" data-specialresult data-kind="champion" data-betkey="WC">Zapisz</button>
+        ${results['champion:WC']?'<button class="btn btn-ghost" data-specialclear data-kind="champion" data-betkey="WC">Cofnij</button>':''}
       </div>
     </div>`;
   for(const g of GROUP_LETTERS){
@@ -468,6 +469,7 @@ function renderAdmin(){
           ${GROUP_TEAMS[g].slice().sort((a,b)=>teamName(a).localeCompare(teamName(b))).map(t=>`<option value="${t}" ${results[key]===t?'selected':''}>${teamName(t)}</option>`).join('')}
         </select>
         <button class="btn btn-green" data-specialresult data-kind="group" data-betkey="${g}">Zapisz</button>
+        ${results[key]?`<button class="btn btn-ghost" data-specialclear data-kind="group" data-betkey="${g}">Cofnij</button>`:''}
       </div>
     </div>`;
   }
@@ -522,6 +524,21 @@ function bindContent(){
   document.querySelectorAll('[data-specialresult]').forEach(b=>{
     b.onclick=()=>saveSpecialResult(b.dataset.kind, b.dataset.betkey);
   });
+  document.querySelectorAll('[data-specialclear]').forEach(b=>{
+    b.onclick=()=>clearSpecialResult(b.dataset.kind, b.dataset.betkey);
+  });
+}
+
+async function clearSpecialResult(kind, betKey){
+  const label = kind==='champion' ? 'mistrza' : 'grupy '+betKey;
+  if(!confirm(`Cofnąć wynik dla ${label}? Punkty graczy zostaną wyzerowane.`)) return;
+  try{
+    await api('/admin-special',{method:'DELETE',body:JSON.stringify({kind,bet_key:betKey})});
+    toast('Wynik cofnięty');
+    await loadAll();
+    if(state.special) await loadSpecial();
+    renderContent();
+  }catch(e){ toast(e.message); }
 }
 
 async function saveSpecial(){
