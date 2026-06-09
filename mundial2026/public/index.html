@@ -150,6 +150,14 @@ nav{display:flex;gap:6px;margin:18px 0 8px;flex-wrap:wrap}
 .rule .desc{font-size:14px;color:var(--muted)}
 .rule .desc b{color:var(--txt);font-size:15px;display:block;margin-bottom:2px}
 
+/* TYPY SPECJALNE */
+.special-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.special-group{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px}
+.special-group-label{font-family:'Bebas Neue';font-size:18px;color:var(--green);letter-spacing:1px;margin-bottom:6px}
+.special-locked-pick{font-size:14px;font-weight:700}
+.special-select{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:9px;font-family:'Archivo';font-size:14px}
+.special-select:focus{outline:none;border-color:var(--green)}
+
 /* ADMIN */
 .admin-match{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
 .admin-match .nm{font-size:14px;font-weight:600}
@@ -169,6 +177,7 @@ nav{display:flex;gap:6px;margin:18px 0 8px;flex-wrap:wrap}
 @keyframes pop{from{opacity:0;transform:translateX(-50%) translateY(10px)}}
 @media(max-width:560px){
   .wrap{padding:0 10px 70px}
+  /* Nagłówek: mniejsze logo, zawijanie, kompaktowy */
   .hd{padding:10px 12px;gap:8px;flex-wrap:wrap}
   .logo b{font-size:21px;letter-spacing:1px}
   .goat{width:28px;height:28px;font-size:18px}
@@ -177,8 +186,10 @@ nav{display:flex;gap:6px;margin:18px 0 8px;flex-wrap:wrap}
   .userbox > span{max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .btn{padding:8px 12px;font-size:13px}
   .userbox .btn{padding:7px 10px;font-size:12px}
+  /* Nawigacja */
   nav{gap:5px;margin:14px 0 6px}
   .tab{font-size:17px;padding:6px 13px}
+  /* Karty meczów */
   .match{padding:13px 11px;border-radius:14px}
   .teams{grid-template-columns:1fr auto 1fr;gap:4px}
   .team{gap:5px}
@@ -189,15 +200,19 @@ nav{display:flex;gap:6px;margin:18px 0 8px;flex-wrap:wrap}
   .score-in .sep{font-size:22px}
   .match-actions{flex-wrap:wrap;gap:8px}
   .status{font-size:12px}
+  /* Ranking */
   .lb-row{grid-template-columns:36px 1fr auto;padding:11px 12px;gap:8px}
   .lb-rank{font-size:22px}
   .lb-name{font-size:14px}
   .lb-name small{font-size:11px}
   .lb-total{font-size:25px}
+  /* Panel admina */
   .admin-match{grid-template-columns:1fr;gap:8px}
   .admin-ctrl{justify-content:flex-start;flex-wrap:wrap}
+  /* Zasady */
   .rule .pt{font-size:28px;min-width:44px}
   .info-card{padding:18px 15px}
+  .special-grid{grid-template-columns:1fr}
 }
 </style>
 </head>
