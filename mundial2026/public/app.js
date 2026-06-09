@@ -8,7 +8,27 @@ let state = {
   leaderboard: [],
   filter: 'upcoming',
   authMode: 'login',
+  special: null,        // typy specjalne usera + status
+  specialDraft: {},     // robocze wybory zanim zapisze
 };
+
+// Drużyny w każdej grupie (do typowania zwycięzcy grupy)
+const GROUP_TEAMS = {
+  'A':['Mexico','South Africa','South Korea','Czechia'],
+  'B':['Canada','Bosnia & Herzegovina','Qatar','Switzerland'],
+  'C':['Brazil','Morocco','Haiti','Scotland'],
+  'D':['USA','Paraguay','Australia','Türkiye'],
+  'E':['Germany','Curaçao','Ivory Coast','Ecuador'],
+  'F':['Netherlands','Japan','Sweden','Tunisia'],
+  'G':['Belgium','Egypt','Iran','New Zealand'],
+  'H':['Spain','Cape Verde','Saudi Arabia','Uruguay'],
+  'I':['France','Senegal','Iraq','Norway'],
+  'J':['Argentina','Algeria','Austria','Jordan'],
+  'K':['Portugal','DR Congo','Uzbekistan','Colombia'],
+  'L':['England','Croatia','Ghana','Panama'],
+};
+const GROUP_LETTERS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+function allTeamsSorted(){ return GROUP_LETTERS.flatMap(g => GROUP_TEAMS[g]).sort((a,b)=> teamName(a).localeCompare(teamName(b))); }
 
 // Mapowanie nazw drużyn -> flagi emoji
 // Kody krajów dla obrazków flag (flagcdn.com) — działają na każdym systemie, też Windows
@@ -104,7 +124,7 @@ function renderHeader(){
   const me = state.leaderboard.find(r=>r.id===state.user.id);
   const pts = me ? me.total : 0;
   return `<header><div class="hd">
-    <div class="logo"><div class="goat">🐐</div><b>MUNDIAL<span>26</span></b></div>
+    <div class="logo" id="logoHome" style="cursor:pointer"><div class="goat">🐐</div><b>MUNDIAL<span>26</span></b></div>
     <div class="userbox">
       <span class="pts">${pts} pkt</span>
       <span>${state.user.display_name}</span>
@@ -114,7 +134,7 @@ function renderHeader(){
 }
 
 function renderNav(){
-  const tabs=[['matches','Mecze'],['leaderboard','Ranking'],['rules','Zasady']];
+  const tabs=[['matches','Mecze'],['special','Typy specjalne'],['leaderboard','Ranking'],['rules','Zasady']];
   if(state.user.is_admin) tabs.push(['admin','Panel admina']);
   return `<nav>${tabs.map(([k,l])=>
     `<div class="tab ${state.view===k?'active':''}" data-view="${k}">${l}</div>`).join('')}</nav>`;
@@ -170,6 +190,8 @@ function bindAuth(){
 
 function bindHeader(){
   document.getElementById('logoutBtn').onclick=logout;
+  const logo=document.getElementById('logoHome');
+  if(logo) logo.onclick=()=>{ state.view='matches'; state.filter='upcoming'; render(); };
   document.querySelectorAll('.tab').forEach(t=>{
     t.onclick=()=>{ state.view=t.dataset.view; state.justRegistered=false; render(); };
   });
@@ -178,16 +200,30 @@ function bindHeader(){
 function renderContent(){
   const c=document.getElementById('content');
   if(state.view==='matches') c.innerHTML=renderMatches();
+  else if(state.view==='special'){ c.innerHTML=renderSpecial(); loadSpecial(); }
   else if(state.view==='leaderboard') c.innerHTML=renderLeaderboard();
   else if(state.view==='rules') c.innerHTML=renderRules();
   else if(state.view==='admin'){ c.innerHTML=renderAdmin(); loadAdminUsers(); }
   bindContent();
 }
 
+async function loadSpecial(){
+  try{
+    const data=await api('/special');
+    state.special=data;
+    if(state.view==='special'){
+      document.getElementById('content').innerHTML=renderSpecial();
+      bindContent();
+    }
+  }catch(e){ /* ignoruj */ }
+}
+
 async function loadAdminUsers(){
   try{
-    const data=await api('/admin-users');
-    state.adminUsers=data.users;
+    const [usersData] = await Promise.all([ api('/admin-users') ]);
+    state.adminUsers=usersData.users;
+    // dociągnij wyniki specjalne (dla sekcji w panelu)
+    try{ state.special = await api('/special'); }catch(e){}
     if(state.view==='admin'){
       document.getElementById('content').innerHTML=renderAdmin();
       bindContent();
@@ -280,11 +316,83 @@ function renderLeaderboard(){
     html+=`<div class="lb-row ${me}">
       <div class="lb-rank ${medal}">${r.rank}</div>
       <div class="lb-name">${r.name}${me?' <span style="color:var(--green)">(Ty)</span>':''}
-        <small>${r.played} typów · ${r.exact_hits}× dokładnie · ${r.outcome_hits}× zwycięzca</small></div>
+        <small>${r.played} typów · ${r.exact_hits}× dokładnie${r.special_pts?' · '+r.special_pts+' pkt specjalnych 🏆':''}</small></div>
       <div class="lb-total">${r.total}<small> pkt</small></div>
     </div>`;
   }
   html+=`</div>`;
+  return html;
+}
+
+// ---- TYPY SPECJALNE ----
+function renderSpecial(){
+  if(!state.special){ return `<div class="loading">Ładowanie...</div>`; }
+  const sp=state.special;
+  const locked=sp.locked;
+  const preds=sp.predictions||{};
+  const results=sp.results||{};
+
+  // pomocnik: pobierz aktualny wybór (draft > zapisany)
+  const cur=(key)=> (state.specialDraft[key]!==undefined ? state.specialDraft[key] : (preds[key]?preds[key].team:''));
+
+  let html='';
+
+  // Nagłówek / status
+  if(locked){
+    html+=`<div class="info-card"><h3>Typy specjalne</h3>
+      <p style="color:var(--muted);font-size:14px">Obstawianie jest <b style="color:var(--red)">zamknięte</b> — Mundial wystartował. Poniżej Twoje typy. Punkty doliczą się po wyłonieniu zwycięzców grup (3 pkt) i mistrza (15 pkt).</p></div>`;
+  } else {
+    const lt=sp.lock_time?`${fmtDay(sp.lock_time)} ${fmtTime(sp.lock_time)}`:'startu Mundialu';
+    html+=`<div class="info-card" style="border-color:var(--green)"><h3 style="color:var(--green)">Typy specjalne 🏆</h3>
+      <p style="color:var(--muted);font-size:14px">Obstaw <b style="color:var(--txt)">zwycięzcę każdej grupy</b> (3 pkt za trafienie) oraz <b style="color:var(--txt)">mistrza Mundialu</b> (15 pkt). Można to zrobić tylko do <b style="color:var(--txt)">${lt}</b>. Potem zablokowane na stałe!</p></div>`;
+  }
+
+  // MISTRZ
+  const champKey='champion:WC';
+  const champPicked=cur(champKey);
+  html+=`<div class="info-card"><h3>🏆 Mistrz Mundialu <span style="color:var(--gold);font-size:16px">15 pkt</span></h3>`;
+  if(locked){
+    const realChamp=results[champKey];
+    const p=preds[champKey];
+    html+=`<div style="font-size:16px;font-weight:700">${p?teamName(p.team):'<span style="color:var(--muted)">nie obstawiłeś</span>'}</div>`;
+    if(realChamp) html+=`<div style="font-size:13px;color:var(--muted);margin-top:6px">Mistrz: <b style="color:var(--txt)">${teamName(realChamp)}</b> ${p?(p.points>0?'· +15 pkt ✅':'· 0 pkt'):''}</div>`;
+  } else {
+    html+=`<select class="special-select" data-key="${champKey}" data-kind="champion" data-betkey="WC">
+      <option value="">— wybierz drużynę —</option>
+      ${allTeamsSorted().map(t=>`<option value="${t}" ${champPicked===t?'selected':''}>${teamName(t)}</option>`).join('')}
+    </select>`;
+  }
+  html+=`</div>`;
+
+  // GRUPY
+  html+=`<div class="info-card"><h3>Zwycięzcy grup <span style="color:var(--gold);font-size:16px">3 pkt każda</span></h3>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:14px">Kto zajmie 1. miejsce w każdej grupie?</p>
+    <div class="special-grid">`;
+  for(const g of GROUP_LETTERS){
+    const key='group:'+g;
+    const picked=cur(key);
+    html+=`<div class="special-group">
+      <div class="special-group-label">Grupa ${g}</div>`;
+    if(locked){
+      const real=results[key];
+      const p=preds[key];
+      html+=`<div class="special-locked-pick">${p?teamName(p.team):'<span style="color:var(--muted)">—</span>'}`;
+      if(real) html+=` <span style="font-size:12px;color:${p&&p.points>0?'var(--green)':'var(--muted)'}">${p&&p.points>0?'✅':'❌ '+teamName(real)}</span>`;
+      html+=`</div>`;
+    } else {
+      html+=`<select class="special-select" data-key="${key}" data-kind="group" data-betkey="${g}">
+        <option value="">— wybierz —</option>
+        ${GROUP_TEAMS[g].slice().sort((a,b)=>teamName(a).localeCompare(teamName(b))).map(t=>`<option value="${t}" ${picked===t?'selected':''}>${teamName(t)}</option>`).join('')}
+      </select>`;
+    }
+    html+=`</div>`;
+  }
+  html+=`</div>`;
+  if(!locked){
+    html+=`<button class="btn btn-green" id="saveSpecial" style="width:100%;margin-top:18px;padding:14px">Zapisz typy specjalne</button>`;
+  }
+  html+=`</div>`;
+
   return html;
 }
 
@@ -302,8 +410,14 @@ function renderRules(){
     <div class="rule"><div class="pt">0</div><div class="desc"><b>Pudło</b>Inny rezultat niż obstawiony</div></div>
   </div>
   <div class="info-card">
+    <h3>Typy specjalne 🏆</h3>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:18px">Przed startem Mundialu (do pierwszego meczu) typujesz zwycięzców grup i mistrza. W zakładce <b style="color:var(--txt)">Typy specjalne</b>. Po starcie zablokowane na stałe.</p>
+    <div class="rule"><div class="pt">15</div><div class="desc"><b>Mistrz Mundialu</b>Trafiłeś, kto wygra cały turniej</div></div>
+    <div class="rule"><div class="pt">3</div><div class="desc"><b>Zwycięzca grupy</b>Trafiłeś drużynę z 1. miejsca w grupie (za każdą z 12 grup osobno)</div></div>
+  </div>
+  <div class="info-card">
     <h3>Dla luzu 😎</h3>
-    <p style="color:var(--muted);font-size:14px">To zabawa dla znajomych, bez presji. Punkty liczą się automatycznie po wpisaniu wyniku meczu przez administratora. Powodzenia!</p>
+    <p style="color:var(--muted);font-size:14px">To zabawa dla znajomych, bez presji. Punkty liczą się automatycznie po wpisaniu wyniku przez administratora. Powodzenia!</p>
   </div>`;
 }
 
@@ -329,6 +443,35 @@ function renderAdmin(){
     html+=`<div style="color:var(--muted);font-size:13px">Ładowanie graczy...</div>`;
   }
   html+=`</div></div>`;
+
+  // Sekcja: wyniki specjalne (zwycięzcy grup + mistrz)
+  const results = (state.special && state.special.results) ? state.special.results : {};
+  html+=`<div class="info-card"><h3>Typy specjalne — wyniki</h3>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:14px">Wpisz zwycięzcę każdej grupy (3 pkt dla graczy) oraz mistrza (15 pkt). Punkty przeliczą się automatycznie.</p>
+    <div class="admin-match">
+      <div class="nm">🏆 Mistrz Mundialu ${results['champion:WC']?'· <span style="color:var(--green)">'+teamName(results['champion:WC'])+'</span>':''}</div>
+      <div class="admin-ctrl">
+        <select id="sr_champion_WC" style="background:var(--bg);border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px">
+          <option value="">— wybierz —</option>
+          ${allTeamsSorted().map(t=>`<option value="${t}" ${results['champion:WC']===t?'selected':''}>${teamName(t)}</option>`).join('')}
+        </select>
+        <button class="btn btn-green" data-specialresult data-kind="champion" data-betkey="WC">Zapisz</button>
+      </div>
+    </div>`;
+  for(const g of GROUP_LETTERS){
+    const key='group:'+g;
+    html+=`<div class="admin-match">
+      <div class="nm">Grupa ${g} ${results[key]?'· <span style="color:var(--green)">'+teamName(results[key])+'</span>':''}</div>
+      <div class="admin-ctrl">
+        <select id="sr_group_${g}" style="background:var(--bg);border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:13px">
+          <option value="">— wybierz —</option>
+          ${GROUP_TEAMS[g].slice().sort((a,b)=>teamName(a).localeCompare(teamName(b))).map(t=>`<option value="${t}" ${results[key]===t?'selected':''}>${teamName(t)}</option>`).join('')}
+        </select>
+        <button class="btn btn-green" data-specialresult data-kind="group" data-betkey="${g}">Zapisz</button>
+      </div>
+    </div>`;
+  }
+  html+=`</div>`;
 
   // Sekcja: mecze
   html+=`<div class="info-card" style="padding-bottom:8px"><h3>Wyniki meczów</h3></div>`;
@@ -369,6 +512,53 @@ function bindContent(){
   document.querySelectorAll('[data-resetpass]').forEach(b=>{
     b.onclick=()=>resetPassword(parseInt(b.dataset.resetpass), b.dataset.name);
   });
+  // Typy specjalne: dropdowny zapisują do draft
+  document.querySelectorAll('.special-select').forEach(sel=>{
+    sel.onchange=()=>{ state.specialDraft[sel.dataset.key]=sel.value; };
+  });
+  const saveSpec=document.getElementById('saveSpecial');
+  if(saveSpec) saveSpec.onclick=saveSpecial;
+  // Admin: wyniki specjalne
+  document.querySelectorAll('[data-specialresult]').forEach(b=>{
+    b.onclick=()=>saveSpecialResult(b.dataset.kind, b.dataset.betkey);
+  });
+}
+
+async function saveSpecial(){
+  const sp=state.special;
+  if(!sp || sp.locked){ toast('Obstawianie zamknięte'); return; }
+  // zbierz wszystkie wybory (draft + zapisane)
+  const preds=sp.predictions||{};
+  const bets=[];
+  // mistrz
+  const champ=state.specialDraft['champion:WC']!==undefined?state.specialDraft['champion:WC']:(preds['champion:WC']?preds['champion:WC'].team:'');
+  if(champ) bets.push({kind:'champion',bet_key:'WC',team:champ});
+  // grupy
+  for(const g of GROUP_LETTERS){
+    const key='group:'+g;
+    const v=state.specialDraft[key]!==undefined?state.specialDraft[key]:(preds[key]?preds[key].team:'');
+    if(v) bets.push({kind:'group',bet_key:g,team:v});
+  }
+  if(!bets.length){ toast('Wybierz przynajmniej jeden typ'); return; }
+  try{
+    await api('/special',{method:'POST',body:JSON.stringify({bets})});
+    state.specialDraft={};
+    toast('Typy specjalne zapisane! 🏆');
+    await loadSpecial();
+  }catch(e){ toast(e.message); }
+}
+
+async function saveSpecialResult(kind, betKey){
+  const sel=document.getElementById('sr_'+kind+'_'+betKey);
+  const team=sel?sel.value:'';
+  if(!team){ toast('Wybierz drużynę'); return; }
+  try{
+    await api('/admin-special',{method:'POST',body:JSON.stringify({kind,bet_key:betKey,team})});
+    toast('Wynik zapisany, punkty przeliczone');
+    await loadAll();
+    if(state.special) await loadSpecial();
+    renderContent();
+  }catch(e){ toast(e.message); }
 }
 
 async function resetPassword(userId, name){
