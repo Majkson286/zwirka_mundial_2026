@@ -202,6 +202,7 @@ function renderContent(){
   if(state.view==='matches') c.innerHTML=renderMatches();
   else if(state.view==='special'){ c.innerHTML=renderSpecial(); loadSpecial(); }
   else if(state.view==='leaderboard') c.innerHTML=renderLeaderboard();
+  else if(state.view==='player'){ c.innerHTML=renderPlayer(); loadPlayer(); }
   else if(state.view==='rules') c.innerHTML=renderRules();
   else if(state.view==='admin'){ c.innerHTML=renderAdmin(); loadAdminUsers(); }
   bindContent();
@@ -303,17 +304,49 @@ function matchCard(m){
       <div class="team"><div class="flag">${flag(m.away)}</div><div class="nm">${teamName(m.away)}</div></div>
     </div>
     <div class="match-actions">${statusHtml}</div>
+    ${m.locked ? `<div class="bets-toggle" data-betstoggle="${m.id}">▾ Pokaż typy graczy</div>
+    <div class="bets-list" id="bets_${m.id}" style="display:none"></div>` : ''}
   </div>`;
 }
 
 // ---- RANKING ----
+async function toggleBets(matchId, btn){
+  const box=document.getElementById('bets_'+matchId);
+  if(!box) return;
+  if(box.style.display!=='none'){
+    box.style.display='none';
+    btn.textContent='▾ Pokaż typy graczy';
+    return;
+  }
+  btn.textContent='▴ Ukryj typy graczy';
+  box.style.display='block';
+  box.innerHTML='<div style="color:var(--muted);font-size:13px;padding:8px">Ładowanie...</div>';
+  try{
+    const data=await api('/match-bets?match_id='+matchId);
+    if(!data.predictions.length){
+      box.innerHTML='<div style="color:var(--muted);font-size:13px;padding:8px">Nikt nie obstawił tego meczu</div>';
+      return;
+    }
+    box.innerHTML=data.predictions.map(p=>{
+      let pts='';
+      if(p.points!==null && p.points!==undefined){
+        const cls=p.points===10?'hit10':(p.points===5?'hit5':'hit0');
+        pts=`<span class="bets-pts ${cls}">+${p.points}</span>`;
+      }
+      return `<div class="bets-row"><span class="bets-name">${p.name}</span><span class="bets-typ">${p.home}:${p.away}</span>${pts}</div>`;
+    }).join('');
+  }catch(e){
+    box.innerHTML='<div style="color:var(--red);font-size:13px;padding:8px">Nie udało się wczytać typów</div>';
+  }
+}
+
 function renderLeaderboard(){
   if(!state.leaderboard.length) return `<div class="empty">Brak danych rankingu</div>`;
   let html=`<div class="lb"><div class="lb-row head"><div>#</div><div>Gracz</div><div style="text-align:right">Punkty</div></div>`;
   for(const r of state.leaderboard){
     const me=r.id===state.user.id?'me':'';
     const medal=r.rank===1?'gold':r.rank===2?'silver':r.rank===3?'bronze':'';
-    html+=`<div class="lb-row ${me}">
+    html+=`<div class="lb-row ${me} lb-clickable" data-player="${r.id}" data-pname="${r.name}">
       <div class="lb-rank ${medal}">${r.rank}</div>
       <div class="lb-name">${r.name}${me?' <span style="color:var(--green)">(Ty)</span>':''}
         <small>${r.played} typów · ${r.exact_hits}× dokładnie${r.special_pts?' · '+r.special_pts+' pkt specjalnych 🏆':''}</small></div>
@@ -322,6 +355,47 @@ function renderLeaderboard(){
   }
   html+=`</div>`;
   return html;
+}
+
+// ---- PROFIL GRACZA ----
+function renderPlayer(){
+  const name=state.profileName||'Gracz';
+  let html=`<div style="margin-top:18px"><span class="back-link" id="backToLb">← Wróć do rankingu</span></div>
+    <div class="info-card"><h3>Typy gracza: ${name}</h3>
+    <p style="color:var(--muted);font-size:13px">Widoczne tylko zamknięte mecze (otwarte są ukryte, żeby nikt nie zgapiał 😉).</p></div>`;
+  if(!state.profile){ return html+`<div class="loading">Ładowanie...</div>`; }
+  const bets=state.profile.bets||[];
+  if(!bets.length){ return html+`<div class="empty">Ten gracz nie ma jeszcze zamkniętych typów</div>`; }
+
+  html+=`<div class="lb" style="margin-top:12px">`;
+  for(const b of bets){
+    let res='', pts='';
+    if(b.finished){
+      res=`<span class="prof-res">${b.home_score}:${b.away_score}</span>`;
+      const cls=b.points===10?'hit10':(b.points===5?'hit5':'hit0');
+      pts=`<span class="bets-pts ${cls}">+${b.points??0}</span>`;
+    } else {
+      res=`<span style="color:var(--muted);font-size:12px">w toku</span>`;
+    }
+    html+=`<div class="prof-row">
+      <div class="prof-match">${teamName(b.home)} <b>${b.pred_home}:${b.pred_away}</b> ${teamName(b.away)}
+        <small>${fmtDay(b.kickoff)}</small></div>
+      <div class="prof-right">${res}${pts}</div>
+    </div>`;
+  }
+  html+=`</div>`;
+  return html;
+}
+
+async function loadPlayer(){
+  try{
+    const data=await api('/player?user_id='+state.profileId);
+    state.profile=data;
+    if(state.view==='player'){
+      document.getElementById('content').innerHTML=renderPlayer();
+      bindContent();
+    }
+  }catch(e){ /* ignoruj */ }
 }
 
 // ---- TYPY SPECJALNE ----
@@ -505,6 +579,14 @@ function bindContent(){
   document.querySelectorAll('[data-save]').forEach(b=>{
     b.onclick=()=>savePrediction(parseInt(b.dataset.save));
   });
+  document.querySelectorAll('[data-betstoggle]').forEach(b=>{
+    b.onclick=()=>toggleBets(parseInt(b.dataset.betstoggle), b);
+  });
+  document.querySelectorAll('.lb-clickable').forEach(row=>{
+    row.onclick=()=>{ state.profileId=parseInt(row.dataset.player); state.profileName=row.dataset.pname; state.profile=null; state.view='player'; render(); };
+  });
+  const backLb=document.getElementById('backToLb');
+  if(backLb) backLb.onclick=()=>{ state.view='leaderboard'; render(); };
   document.querySelectorAll('[data-result]').forEach(b=>{
     b.onclick=()=>saveResult(parseInt(b.dataset.result));
   });
